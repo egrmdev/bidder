@@ -110,7 +110,7 @@ class BiddingServiceTest {
     }
 
     private static MappingBuilder getURLWithHeaderBuilder() {
-        return post(urlPathMatching("/([0-9]*)"))
+        return post(urlEqualTo("/"))
                 .withHeader("Content-Type", equalTo("application/json"));
     }
 

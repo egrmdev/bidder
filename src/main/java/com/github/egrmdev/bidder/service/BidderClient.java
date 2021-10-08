@@ -19,7 +19,7 @@ public class BidderClient {
     }
 
     public Mono<AuctionBid> getAuctionBid(BidRequest bidRequest) {
-        return client.post().uri(uriBuilder -> uriBuilder.path("/{bidId}").build(bidRequest.getId()))
+        return client.post().uri("/")
                 .accept(MediaType.APPLICATION_JSON)
                 .body(BodyInserters.fromValue(bidRequest))
                 .retrieve()

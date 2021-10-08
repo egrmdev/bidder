@@ -24,6 +24,7 @@ public class BiddingService {
 
     @Autowired
     public BiddingService(WebClient.Builder webClientBuilder, BiddersConfiguration configuration) {
+        log.info("Initializing bidders {}}", configuration.getBidders());
         this.bidders = configuration.getBidders().stream()
                 .map(host -> new BidderClient(webClientBuilder, host))
                 .collect(Collectors.toList());
