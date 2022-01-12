@@ -2,6 +2,7 @@ package com.github.egrmdev.bidder.service;
 
 import com.github.egrmdev.bidder.configuration.BiddersConfiguration;
 import com.github.egrmdev.bidder.model.AuctionBid;
+import com.github.egrmdev.bidder.model.BidRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,13 +15,13 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-import com.github.egrmdev.bidder.model.BidRequest;
 
 @Slf4j
 @Service
 public class BiddingService {
-
+    public static final AuctionWinnerDecider HIGHEST_BID = new HighestBid();
     private final List<BidderClient> bidders;
+    private AuctionWinnerDecider winnerDecider;
 
     @Autowired
     public BiddingService(WebClient.Builder webClientBuilder, BiddersConfiguration configuration) {
@@ -31,6 +32,10 @@ public class BiddingService {
     }
 
     public Mono<AuctionBid> getHighestBid(BidRequest bidRequest) {
+        if (winnerDecider == null) {
+            log.warn("Winning bid decider wasn't set, highest bid decider is used");
+            setWinnerDecider(HIGHEST_BID);
+        }
         return Flux.fromIterable(bidders)
                 .parallel()
                 .runOn(Schedulers.boundedElastic())
@@ -50,9 +55,11 @@ public class BiddingService {
                 .filter(bidResponse -> bidResponse.getBid() > 0) // non-positive bids don't make sense
                 .sequential()
                 .doOnNext(r -> log.debug("{}", r))
-                .reduce((bidResponse, bidResponse2) ->
-                        // in case both bids are equal, there is no tiebreaker and the one winning is not deterministic
-                        bidResponse.getBid() >= bidResponse2.getBid() ? bidResponse : bidResponse2
-                );
+                .transform(winnerDecider::decideWinner)
+                .single();
+    }
+
+    public void setWinnerDecider(AuctionWinnerDecider winnerDecider) {
+        this.winnerDecider = winnerDecider;
     }
 }

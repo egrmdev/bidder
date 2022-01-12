@@ -2,8 +2,8 @@ package com.github.egrmdev.bidder.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.egrmdev.bidder.configuration.TestBiddersConfiguration;
-import com.github.egrmdev.bidder.model.BidRequest;
 import com.github.egrmdev.bidder.model.AuctionBid;
+import com.github.egrmdev.bidder.model.BidRequest;
 import com.github.tomakehurst.wiremock.client.MappingBuilder;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
@@ -11,9 +11,6 @@ import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,7 +19,6 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.test.StepVerifier;
 
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 
@@ -47,20 +43,46 @@ class BiddingServiceTest {
     @RegisterExtension
     static WireMockExtension BIDDER_3 = getConfiguredInstance(8083);
 
-    @ParameterizedTest
-    @MethodSource("bidProvider")
-    @DisplayName("Auction should return bid response with the highest bid")
-    void shouldReturnCorrectAuctionResult(long bidId, long bid1, long bid2, long bid3) {
-        BIDDER_1.stubFor(getWireMockStubMapping(new AuctionBid(bidId, bid1, "")));
-        BIDDER_2.stubFor(getWireMockStubMapping(new AuctionBid(bidId, bid2, "")));
-        BIDDER_3.stubFor(getWireMockStubMapping(new AuctionBid(bidId, bid3, "")));
+    @Test
+    @DisplayName("Auction should return bid response with the highest bid if no decider is set explicitly")
+    void shouldUseHighestBidWinnerDeciderIfNoDeciderSet() {
+        biddingService.setWinnerDecider(null);
+        long bidId = 0L;
+        BIDDER_1.stubFor(getWireMockStubMapping(new AuctionBid(bidId, 10, "")));
+        BIDDER_2.stubFor(getWireMockStubMapping(new AuctionBid(bidId, 20, "")));
+        BIDDER_3.stubFor(getWireMockStubMapping(new AuctionBid(bidId, 21, "")));
 
-        assertAuctionResult(bidId, Math.max(Math.max(bid1, bid2), bid3));
+        assertAuctionResult(bidId, 21);
+    }
+
+    @Test
+    @DisplayName("Auction should return bid response with the highest bid")
+    void shouldReturnCorrectAuctionResultWithHighestBidDecider() {
+        biddingService.setWinnerDecider(BiddingService.HIGHEST_BID);
+        long bidId = 0L;
+        BIDDER_1.stubFor(getWireMockStubMapping(new AuctionBid(bidId, 10, "")));
+        BIDDER_2.stubFor(getWireMockStubMapping(new AuctionBid(bidId, 20, "")));
+        BIDDER_3.stubFor(getWireMockStubMapping(new AuctionBid(bidId, 21, "")));
+
+        assertAuctionResult(bidId, 21);
+    }
+
+    @Test
+    @DisplayName("Auction should return bid response with the second highest bid plus one")
+    void shouldReturnCorrectAuctionResultWithSecondHighestBidPlusOneDecider() {
+        biddingService.setWinnerDecider(new SecondHighestBidPlusOne());
+        long bidId = 0L;
+        BIDDER_1.stubFor(getWireMockStubMapping(new AuctionBid(bidId, 10, "")));
+        BIDDER_2.stubFor(getWireMockStubMapping(new AuctionBid(bidId, 20, "")));
+        BIDDER_3.stubFor(getWireMockStubMapping(new AuctionBid(bidId, 30, "")));
+
+        assertAuctionResult(bidId, 21);
     }
 
     @Test
     @DisplayName("Action should not wait for slow bidders to respond")
     void shouldNotWaitForSlowBidders() {
+        biddingService.setWinnerDecider(BiddingService.HIGHEST_BID);
         final AuctionBid response1 = new AuctionBid(1L, 10, "");
         BIDDER_1.stubFor(getWireMockStubMapping(response1));
         final AuctionBid response2 = new AuctionBid(1L, 100, "");
@@ -77,6 +99,7 @@ class BiddingServiceTest {
     @Test
     @DisplayName("Auction should not fail in case bidders return errors")
     void shouldNotFailInCaseOneBidderReturnsError() {
+        biddingService.setWinnerDecider(BiddingService.HIGHEST_BID);
         final AuctionBid response1 = new AuctionBid(1L, 11, "");
         BIDDER_1.stubFor(getWireMockStubMapping(response1));
         BIDDER_2.stubFor(getURLWithHeaderBuilder().willReturn(aResponse().withStatus(404)));
@@ -90,18 +113,6 @@ class BiddingServiceTest {
                 .options(WireMockConfiguration.wireMockConfig().port(port))
                 .failOnUnmatchedRequests(true)
                 .build();
-    }
-
-    static Stream<Arguments> bidProvider() {
-        return Stream.of(
-                Arguments.arguments(1L, 1, 1, 1),
-                Arguments.arguments(2L, 1, 10, 100),
-                Arguments.arguments(3L, 99, 100, 101),
-                Arguments.arguments(4L, Long.MIN_VALUE, 1, Long.MAX_VALUE),
-                Arguments.arguments(5L, -1, 0, 1),
-                Arguments.arguments(6L, 1000, 900, 800),
-                Arguments.arguments(6L, 100, 150, 50)
-        );
     }
 
     private static MappingBuilder getWireMockStubMapping(AuctionBid response) {

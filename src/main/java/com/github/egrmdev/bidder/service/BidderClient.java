@@ -1,14 +1,12 @@
 package com.github.egrmdev.bidder.service;
 
-import com.github.egrmdev.bidder.model.BidRequest;
 import com.github.egrmdev.bidder.model.AuctionBid;
-import lombok.extern.slf4j.Slf4j;
+import com.github.egrmdev.bidder.model.BidRequest;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-@Slf4j
 public class BidderClient {
     private final WebClient client;
     private final String bidderUrl;

@@ -1,7 +1,8 @@
 package com.github.egrmdev.bidder.web;
 
-import com.github.egrmdev.bidder.service.BiddingService;
 import com.github.egrmdev.bidder.model.BidRequest;
+import com.github.egrmdev.bidder.service.BiddingService;
+import com.github.egrmdev.bidder.service.SecondHighestBidPlusOne;
 import com.github.egrmdev.bidder.util.BidContentParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -13,11 +14,12 @@ import reactor.core.publisher.Mono;
 @Component
 public class AuctionHandler {
 
-    private BiddingService biddingService;
+    private final BiddingService biddingService;
 
     @Autowired
     public AuctionHandler(BiddingService biddingService) {
         this.biddingService = biddingService;
+        biddingService.setWinnerDecider(new SecondHighestBidPlusOne());
     }
 
     public Mono<ServerResponse> getWinningBidContent(ServerRequest request) {
