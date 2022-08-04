@@ -117,7 +117,7 @@ class BiddingServiceTest {
 
     private static MappingBuilder getWireMockStubMapping(AuctionBid response) {
         return getURLWithHeaderBuilder()
-                .willReturn(getResponseDefBuilder(response).withUniformRandomDelay(1, 10));
+                .willReturn(getResponseDefBuilder(response).withUniformRandomDelay(1, 5));
     }
 
     private static MappingBuilder getURLWithHeaderBuilder() {
